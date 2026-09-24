@@ -1,0 +1,9 @@
+# 白名单：只纳管 plan-start 与 common-guide 两个唯一源 skill，其余全部忽略。
+/*
+!/.gitignore
+!/plan-start/
+!/common-guide/
+
+# 噪音文件
+.DS_Store
+**/.DS_Store
