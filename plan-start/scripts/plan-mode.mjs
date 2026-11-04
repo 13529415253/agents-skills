@@ -2,11 +2,16 @@
 /**
  * plan-mode：管理项目级计划模式提示词、计划自检和非破坏式视图重建。
  *
- * 用法：node plan-mode.mjs <install|remove|sync|check>
+ * 用法：node plan-mode.mjs <install|remove|sync|check> [--project]
+ *
+ * 核心提示词默认写入 agent 目录的全局 `AGENTS.md`（pi 为 `~/.pi/agent/AGENTS.md`），
+ * 不再写入项目 `AGENTS.md`，避免提示词随业务仓库提交。
+ * `remove --project` 仅用于清理历史遗留的项目内受管控区块。
  *
  * @author wululu
  */
-import { existsSync, lstatSync, readFileSync, readlinkSync, writeFileSync, unlinkSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readlinkSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -14,8 +19,11 @@ import { spawnSync } from 'node:child_process';
 const projectRoot = resolve(process.cwd());
 const planningRoot = join(projectRoot, '.planning');
 const activePath = join(planningRoot, 'active.json');
-const agentsPath = join(projectRoot, 'AGENTS.md');
+const agentDir = resolve(process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi', 'agent'));
+const globalAgentsPath = join(agentDir, 'AGENTS.md');
+const projectAgentsPath = join(projectRoot, 'AGENTS.md');
 const overridePath = join(projectRoot, 'AGENTS.override.md');
+const removeProject = process.argv.includes('--project');
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const skillRoot = resolve(scriptDir, '..');
 const corePath = join(skillRoot, 'core', 'plan-core.md');
@@ -71,49 +79,50 @@ function managedBlock() {
 /**
  * AGENTS.md 是软链时拒绝写入，避免把受管控区块写进软链指向的唯一规则源。
  */
-function assertAgentsNotSymlink() {
-  if (existsSync(agentsPath) && lstatSync(agentsPath).isSymbolicLink()) {
-    throw new Error(`${agentsPath} 是软链（-> ${readlinkSync(agentsPath)}），安全锁拒绝写入，避免污染唯一规则源；请在软链目标文件中维护规则`);
+function assertAgentsNotSymlink(targetPath) {
+  if (existsSync(targetPath) && lstatSync(targetPath).isSymbolicLink()) {
+    throw new Error(`${targetPath} 是软链（-> ${readlinkSync(targetPath)}），安全锁拒绝写入，避免污染唯一规则源；请在软链目标文件中维护规则`);
   }
 }
 
 /**
- * 在项目 AGENTS.md 中幂等安装或更新计划模式区块。
+ * 在指定 AGENTS.md 中幂等安装或更新计划模式区块（默认全局文件）。
  */
-function installAgentsBlock() {
-  assertAgentsNotSymlink();
+function installAgentsBlock(targetPath) {
+  assertAgentsNotSymlink(targetPath);
   const block = managedBlock();
-  const existed = existsSync(agentsPath);
-  const original = existed ? readFileSync(agentsPath, 'utf8') : '';
+  const existed = existsSync(targetPath);
+  const original = existed ? readFileSync(targetPath, 'utf8') : '';
   const pattern = new RegExp(`${escapeRegExp(BEGIN)}[\\s\\S]*?${escapeRegExp(END)}`, 'g');
   const next = original.includes(BEGIN) && original.includes(END)
     ? original.replace(pattern, block)
     : `${original}${original ? (original.endsWith('\n') ? '\n' : '\n\n') : ''}${block}\n`;
-  writeFileSync(agentsPath, next);
-  if (existsSync(overridePath)) {
-    console.warn(`⚠️ 当前项目存在 ${overridePath}；Pi 会优先加载它，请确认计划区块是否需要同步到该文件。`);
+  if (next === original) {
+    console.log(`ℹ️ ${targetPath} 中的计划模式区块已是最新，无需写入`);
+    return;
   }
-  console.log(`✅ 已同步计划模式核心提示词到 ${agentsPath}`);
+  writeFileSync(targetPath, next);
+  console.log(`✅ 已同步计划模式核心提示词到 ${targetPath}`);
 }
 
 /**
- * 从项目 AGENTS.md 中移除计划模式区块，并保留其他项目规则。
+ * 从指定 AGENTS.md 中移除计划模式区块，并保留其他规则。
  */
-function removeAgentsBlock() {
-  const active = readActive();
-  if (active?.mode === 'active') {
-    throw new Error('计划模式仍为 active，安全锁拒绝移除 AGENTS.md 区块；请先退出计划模式（将 active.json 的 mode 改为 off）');
-  }
-  if (!existsSync(agentsPath)) {
-    console.log(`ℹ️ ${agentsPath} 不存在，无需移除计划模式区块`);
+function removeAgentsBlock(targetPath) {
+  if (!existsSync(targetPath)) {
+    console.log(`ℹ️ ${targetPath} 不存在，无需移除计划模式区块`);
     return;
   }
-  assertAgentsNotSymlink();
-  const original = readFileSync(agentsPath, 'utf8');
+  assertAgentsNotSymlink(targetPath);
+  const original = readFileSync(targetPath, 'utf8');
+  if (!original.includes(BEGIN)) {
+    console.log(`ℹ️ ${targetPath} 不含计划模式区块，无需移除`);
+    return;
+  }
   const pattern = new RegExp(`${escapeRegExp(BEGIN)}[\\s\\S]*?${escapeRegExp(END)}`, 'g');
-  const next = original.replace(pattern, '');
-  writeFileSync(agentsPath, next);
-  console.log(`✅ 已从 ${agentsPath} 移除计划模式核心提示词，其他内容保留`);
+  const next = original.replace(pattern, '').replace(/\n{3,}$/, '\n');
+  writeFileSync(targetPath, next);
+  console.log(`✅ 已从 ${targetPath} 移除计划模式核心提示词，其他内容保留`);
 }
 
 /**
@@ -228,46 +237,17 @@ function checkPlan(requirementDir, active = readActive()) {
       return table.rows.map((row) => ({ status: row[statusIndex] || '' }));
     });
     const pendingDiscussionRows = discussionRows.filter((row) => /^(?:待讨论|讨论中|待确认)/.test(row.status));
-    const interfaceSection = discussionSection.match(/^###\s+待讨论接口设计\s*$\n([\s\S]*?)(?=^###\s+|^##\s+|(?![\s\S]))/m)?.[1] || '';
-    const codeSection = discussionSection.match(/^###\s+待讨论代码设计\s*$\n([\s\S]*?)(?=^###\s+|^##\s+|(?![\s\S]))/m)?.[1] || '';
     const isImplementationStep = indexStatusKind === 'active';
     const visualBaselineSection = sectionBody(step, '界面设计基线');
     const isVisualStep = visualSteps.has(stepId) || (!!visualBaselineSection && !/本步骤无视觉改动/.test(visualBaselineSection));
-    const uiDesignSection = discussionSection.match(/^###\s+待讨论界面设计\s*$\n([\s\S]*?)(?=^###\s+|^##\s+|(?![\s\S]))/m)?.[1] || '';
     if (isVisualStep && !visualBaselineSection) {
       warnings.push(`${stepId} 涉及视觉但缺少“界面设计基线”小节`);
-    }
-    if (isVisualStep && isImplementationStep) {
-      if (!uiDesignSection) {
-        errors.push(`${stepId} 进入实施前缺少“待讨论界面设计”子项`);
-      } else {
-        const uiTables = parseMarkdownTables(uiDesignSection, ['编号', '页面/组件', '状态']);
-        if (!uiTables.length && !/无视觉改动/.test(uiDesignSection)) {
-          errors.push(`${stepId} 的“待讨论界面设计”缺少可解析表格或明确的无视觉改动声明`);
-        }
-      }
     }
     if (isImplementationStep) {
       if (!discussionSection) {
         errors.push(`${stepId} 进入实施前缺少“待讨论点”小节`);
       } else if (pendingDiscussionRows.length) {
         errors.push(`${stepId} 仍有 ${pendingDiscussionRows.length} 个待确认讨论点，不能进入实施`);
-      }
-      if (!interfaceSection) {
-        errors.push(`${stepId} 进入实施前缺少“待讨论接口设计”子项`);
-      } else {
-        const interfaceTables = parseMarkdownTables(interfaceSection, ['编号', '类型', '状态']);
-        if (!interfaceTables.length && !/无接口(?:新增、修改、删除或复用登记|变化)/.test(interfaceSection)) {
-          errors.push(`${stepId} 的“待讨论接口设计”缺少可解析表格或明确的无接口变化声明`);
-        }
-      }
-      if (!codeSection) {
-        errors.push(`${stepId} 进入实施前缺少“待讨论代码设计”子项`);
-      } else {
-        const codeTables = parseMarkdownTables(codeSection, ['编号', '类型', '页面/组件/函数', '状态']);
-        if (!codeTables.length && !/无代码结构变更/.test(codeSection)) {
-          errors.push(`${stepId} 的“待讨论代码设计”缺少可解析表格或明确的无结构变化声明`);
-        }
       }
     }
     const batchSection = step.match(/^##\s+实施批次\s*\n([\s\S]*?)(?=^##\s+|(?![\s\S]))/m);
@@ -299,31 +279,42 @@ function checkPlan(requirementDir, active = readActive()) {
         continue;
       }
       const reviewContent = readFileSync(join(requirementDir, reviewPath), 'utf8');
+      // L1 轻量批次（样式值/文案/类名微调，Review 头部标“模板：L1”）只要求增量复测，
+      // 不强制脉络图/接口清单/结构清单（与计划约束 plan-core v15 的 Review 分级一致）。
+      const isL1 = /模板\s*[：:]\s*L1/.test(reviewContent);
+      if (isL1) {
+        if (!sectionBody(reviewContent, '增量复测')) {
+          errors.push(`${stepId} L1 Review 缺少“增量复测”小节：${reviewPath}`);
+        }
+        continue;
+      }
       const graphTitle = '页面与组件脉络图';
       const graphSection = reviewContent.match(new RegExp(`^##\\s+${graphTitle}\\s*\\n([\\s\\S]*?)(?=^##\\s+|(?![\\s\\S]))`, 'm'));
       if (!graphSection || !graphSection[1].includes('```mermaid')) {
         errors.push(`${stepId} Review 缺少图优先内容：${graphTitle}（该小节需包含 mermaid）`);
       }
-      if (interfaceSection) {
-        const changeSection = sectionBody(reviewContent, '接口变更清单');
-        const changeTables = parseMarkdownTables(changeSection, ['类型', '请求方法/路径', '设计方案', '实际实现', '字段变化', '兼容性', '前端动作']);
-        if (!changeSection || (!changeTables.length && !/无接口变化/.test(changeSection))) {
-          errors.push(`${stepId} Review 缺少可核对的“接口变更清单”（需包含表格或明确无接口变化）`);
-        }
+      const changeSection = sectionBody(reviewContent, '接口变更清单');
+      const strictTables = parseMarkdownTables(changeSection, ['类型', '请求方法/路径', '设计方案', '实际实现', '字段变化', '兼容性', '前端动作']);
+      const anyTables = parseMarkdownTables(changeSection);
+      if (!changeSection || (!anyTables.length && !/无接口变化/.test(changeSection))) {
+        errors.push(`${stepId} Review 缺少可核对的“接口变更清单”（需包含表格或明确无接口变化）`);
+      } else if (!strictTables.length && !/无接口变化/.test(changeSection)) {
+        warnings.push(`${stepId} Review 的“接口变更清单”使用旧表头，建议归一为新表头：${reviewPath}`);
       }
       if (isVisualStep && !sectionBody(reviewContent, '界面还原对照')) {
         warnings.push(`${stepId} 视觉批次 Review 缺少“界面还原对照”：${reviewPath}`);
       }
-      if (codeSection) {
-        const structureSection = sectionBody(reviewContent, '代码结构与调用清单');
-        const structureTables = parseMarkdownTables(structureSection, ['页面/组件/函数', '实际职责', '调用入口/时机', 'Props/参数/返回值', '内部流程', '状态/副作用/边界']);
-        if (!structureSection || (!structureTables.length && !/无代码结构变更/.test(structureSection))) {
-          errors.push(`${stepId} Review 缺少可核对的“代码结构与调用清单”（需包含表格或明确无结构变化）`);
-        }
-        const understandingSection = sectionBody(reviewContent, '理解验收');
-        if (!understandingSection || !/验收结论\s*[：:]\s*通过/.test(understandingSection)) {
-          errors.push(`${stepId} Review 缺少“理解验收”通过记录`);
-        }
+      const structureSection = sectionBody(reviewContent, '代码结构与调用清单');
+      const strictStructureTables = parseMarkdownTables(structureSection, ['页面/组件/函数', '实际职责', '调用入口/时机', 'Props/参数/返回值', '内部流程', '状态/副作用/边界']);
+      const anyStructureTables = parseMarkdownTables(structureSection);
+      if (!structureSection || (!anyStructureTables.length && !/无代码结构变更/.test(structureSection))) {
+        errors.push(`${stepId} Review 缺少可核对的“代码结构与调用清单”（需包含表格或明确无结构变化）`);
+      } else if (!strictStructureTables.length && !/无代码结构变更/.test(structureSection)) {
+        warnings.push(`${stepId} Review 的“代码结构与调用清单”使用旧表头，建议归一为新表头：${reviewPath}`);
+      }
+      const understandingSection = sectionBody(reviewContent, '理解验收');
+      if (understandingSection && !/验收结论\s*[：:]\s*通过/.test(understandingSection)) {
+        warnings.push(`${stepId} Review 的“理解验收”未标记通过：${reviewPath}`);
       }
     }
   }
@@ -354,9 +345,16 @@ const command = process.argv[2] || 'check';
 try {
   if (command === 'install') {
     requireActiveMode();
-    installAgentsBlock();
+    installAgentsBlock(globalAgentsPath);
+    console.log(`ℹ️ 核心提示词写入全局 ${globalAgentsPath}，项目内不再写入。`);
+    if (existsSync(projectAgentsPath) && readFileSync(projectAgentsPath, 'utf8').includes(BEGIN)) {
+      console.warn(`⚠️ 检测到 ${projectAgentsPath} 仍含历史受管控区块，可执行 remove --project 清理。`);
+    }
+    if (existsSync(overridePath)) {
+      console.warn(`⚠️ 当前项目存在 ${overridePath}；Pi 会优先加载它，但全局区块与项目 override 互不影响。`);
+    }
   } else if (command === 'remove') {
-    removeAgentsBlock();
+    removeAgentsBlock(removeProject ? projectAgentsPath : globalAgentsPath);
   } else if (command === 'check') {
     const { requirementDir } = requireActive();
     if (!reportCheck(checkPlan(requirementDir, readActive()))) process.exitCode = 1;
@@ -366,11 +364,11 @@ try {
     if (!passed) {
       process.exitCode = 1;
     } else {
-      installAgentsBlock();
+      installAgentsBlock(globalAgentsPath);
       build(requirementDir);
     }
   } else {
-    throw new Error(`未知命令：${command}。可用命令：install、remove、sync、check`);
+    throw new Error(`未知命令：${command}。可用命令：install、remove、sync、check；remove 可加 --project 清理项目内历史区块`);
   }
 } catch (error) {
   console.error(`❌ ${error.message}`);
