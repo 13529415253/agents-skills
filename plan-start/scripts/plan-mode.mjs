@@ -230,6 +230,14 @@ function checkPlan(requirementDir, active = readActive()) {
       errors.push(`${stepId} 状态不一致：index.md=${stepStatus}，步骤标题=${stepHeading.trim()}`);
     }
     if (!step.includes('## 责任与协作')) warnings.push(`${stepId} 缺少“责任与协作”小节`);
+    const featureSection = sectionBody(step, '功能点清单');
+    if (!parseMarkdownTables(featureSection, ['编号', '功能点', '状态']).length && !/本步骤无功能改动/.test(featureSection)) {
+      warnings.push(`${stepId} 缺少可解析的“功能点清单”（初版应按需求功能点列出 P 项）`);
+    }
+    const baselineSection = sectionBody(step, '测试基线');
+    if (!parseMarkdownTables(baselineSection, ['编号', '覆盖项', '状态']).length) {
+      warnings.push(`${stepId} 缺少可解析的“测试基线”台账（初版应按功能点清单列出 V 项）`);
+    }
     const discussionSection = sectionBody(step, '待讨论点');
     const discussionTables = parseMarkdownTables(discussionSection, ['编号', '状态']);
     const discussionRows = discussionTables.flatMap((table) => {
