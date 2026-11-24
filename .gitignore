@@ -3,6 +3,7 @@
 !/.gitignore
 !/plan-start/
 !/common-guide/
+!/dev-self-check/
 
 # 噪音文件
 .DS_Store
