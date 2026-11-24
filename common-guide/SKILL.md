@@ -88,3 +88,4 @@ description: fang 全局开发准则总纲：中文思考与输出、署名、�
 5. Orca CLI 统一使用 `~/.pi/agent/bin/orca-cli-safe`，禁止直接调用 `~/.local/bin/orca-ide`，也不要显式传递 `--no-sandbox`。
 6. 外部终端仍可正常使用 `web_search` 和 `web_fetch`；需要登录的页面无法使用外部网页抓取时，应提示用户切换到 Orca 工作区。
 7. 读取接口文档不走 MCP：需要查阅 Apifox 接口文档时，禁止通过 Apifox MCP（如 apifox-mcp-server）或任何 MCP 工具读取接口定义；一律在 Orca 浏览器中直接打开第 4 条登记的 Apifox 项目文档链接浏览（U课AI：project/5100746；U课评：project/2836411），需登录时使用当前已登录会话，从页面中读取接口 path、字段与枚举。
+8. 在 Orca 打开任何 URL 前必须先查重：执行 `orca-cli-safe tab list --worktree all --json`（标签按 worktree 作用域隔离，不带 `--worktree` 只列当前 worktree，会漏看其它工作区已打开的标签；`tab current` 报 `browser_no_tab` 只说明当前 worktree 无标签，不代表目标未打开）。按 URL 匹配到已打开标签时（比较前统一 `decodeURI`，至少比对协议+主机+路径），一律用该行 `browserPageId` 以 `--page` 复用，需要置前台用 `tab switch --page`，禁止对该 URL 重复 `tab create`；未命中才新建。详细流程见 `~/.pi/agent/docs/orca-browser-guide.md`。

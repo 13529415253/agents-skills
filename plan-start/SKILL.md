@@ -64,7 +64,7 @@ description: 进入计划模式（分片完整档）：建分片计划、零售�
    - 写回所有受影响计划片段（index.md / steps / anchors.md）；
    - 更新 active.json：`文档版本` +1，`当前步骤`、`最近变更`、`更新时间`同步修正；
    - 执行 `node ~/.agents/skills/plan-start/scripts/plan-build.mjs ./.planning/<需求>` 重建 html（pi 侧等价命令 `/plan-build`）；用户使用浏览器原生刷新查看最新构建结果，最近变更的讨论点会高亮。
-7. **计划视图默认用 Orca 浏览器打开**：会话处于 Orca 工作区时（存在 `ORCA_TERMINAL_HANDLE`、`ORCA_WORKTREE_ID`，`orca-cli-safe status --json` 为 app.running=true、runtime.state=ready），构建后默认用 Orca 内嵌浏览器打开或复核，不使用系统默认浏览器。操作顺序：`orca-cli-safe tab list --json` 查现有标签，无可用标签时 `tab create --json`，再 `goto --url file://<绝对路径> --json`（非 ASCII 路径先 URL 编码），同一需求已有标签时优先切换。非 Orca 环境用 `open` / `xdg-open`。详见 `~/.pi/agent/docs/orca-browser-guide.md`。
+7. **计划视图默认用 Orca 浏览器打开**：会话处于 Orca 工作区时（存在 `ORCA_TERMINAL_HANDLE`、`ORCA_WORKTREE_ID`，`orca-cli-safe status --json` 为 app.running=true、runtime.state=ready），构建后默认用 Orca 内嵌浏览器打开或复核，不使用系统默认浏览器。操作顺序：先 `orca-cli-safe tab list --worktree all --json` 全量查现有标签（不带 `--worktree` 只列当前 worktree，会漏看其它工作区已打开的标签），命中目标 URL 时用该行 `browserPageId` 以 `--page` 复用并 `tab switch --page` 置前台，禁止 `tab create`；未命中才 `tab create --json`，再 `goto --page <browserPageId> --url file://<绝对路径> --json`（非 ASCII 路径先 URL 编码），同一需求已有标签时优先切换。非 Orca 环境用 `open` / `xdg-open`。详见 `~/.pi/agent/docs/orca-browser-guide.md`。
 
 ## 三、协作范围与责任边界
 
