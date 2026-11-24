@@ -15,10 +15,10 @@ description: fang 全局开发准则总纲：中文思考与输出、署名、�
    - U课AI（接口文档地址：[https://app.apifox.com/project/5100746](https://app.apifox.com/project/5100746)）
      - 学生端：checkin-stu（小程序 Taro + React）；
      - web学生端：wm-ai-stu（PC/Mobile Arco Design Vue + vue）；
-       - 登录账号：13529415253 登录密码：UKAI13529415253
+       - 登录账号：13529415253 登录密码：UKAI13529415253（UKAI+学号）
      - 教师端：wm-ai（PC Arco Design Vue + vue）；
-       - 教师 登录账号：gcf001 登录密码：csxxgcf001
-       - admin 登录账号：13529415253 登录密码：admin13529415253
+       - 教师 登录账号：gcf001 登录密码：csxxgcf001（csxx+工号）
+       - admin 登录账号：13529415253 登录密码：admin13529415253（admin+工号）
        - form 表单使用<a-from>表单，校验使用组件自带的rules；
        - 上传图片，在本地选择或拖拽图片后，需要使用图片预览+编辑组件，components/ImagePreviewDialog + components/ImageEditor；
      - 产品官网：wm-ai(PC nuxt + vue)；
