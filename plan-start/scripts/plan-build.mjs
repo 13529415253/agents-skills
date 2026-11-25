@@ -581,7 +581,7 @@ const buildTime = new Date().toLocaleString('zh-CN', { hour12: false });
 
 const body = `
 <div class="app-shell">
-  <aside class="sidebar" aria-label="计划目录">
+  <aside class="sidebar" id="plan-sidebar" aria-label="计划目录">
     <div class="sidebar-header">
       <div class="brand-mark">⌁</div>
       <div>
@@ -599,6 +599,8 @@ const body = `
     </div>
     <div class="sidebar-footer">使用浏览器刷新 · AI 写回后重建</div>
   </aside>
+
+  <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-controls="plan-sidebar" aria-expanded="true" aria-label="收起侧板菜单" title="收起侧板菜单">‹</button>
 
   <main class="main-content">
     <header class="page-header">
@@ -698,7 +700,13 @@ html{scroll-behavior:smooth;background:var(--canvas)}
 body{margin:0;color:var(--ink);background:var(--canvas);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","PingFang SC","Microsoft YaHei",sans-serif;font-size:15px;line-height:1.7;-webkit-font-smoothing:antialiased}
 a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}
 .app-shell{display:grid;grid-template-columns:292px minmax(0,1fr);min-height:100vh}
-.sidebar{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;background:rgba(250,250,252,.92);border-right:1px solid var(--line);backdrop-filter:saturate(180%) blur(20px);z-index:2}
+.sidebar{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;min-width:0;background:rgba(250,250,252,.92);border-right:1px solid var(--line);backdrop-filter:saturate(180%) blur(20px);z-index:2}
+.app-shell.sidebar-collapsed{grid-template-columns:0 minmax(0,1fr)}
+.app-shell.sidebar-collapsed .sidebar{visibility:hidden;overflow:hidden;border-right:0}
+.sidebar-toggle{position:fixed;top:22px;left:277px;z-index:12;display:grid;place-items:center;width:30px;height:30px;padding:0 0 3px;border:1px solid var(--line-strong);border-radius:9px;background:rgba(255,255,255,.96);box-shadow:0 3px 12px rgba(0,0,0,.1);color:var(--ink-secondary);font-size:24px;line-height:1;cursor:pointer}
+.sidebar-toggle:hover{background:var(--blue-soft);border-color:#9cc5f2;color:var(--blue)}
+.sidebar-toggle:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.app-shell.sidebar-collapsed .sidebar-toggle{left:12px}
 .sidebar-header{display:flex;gap:11px;align-items:center;padding:24px 21px 17px;border-bottom:1px solid rgba(229,229,234,.75)}
 .brand-mark{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--ink);color:#fff;font-size:22px;line-height:1;transform:rotate(-12deg)}
 .brand-title{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:700;letter-spacing:.01em}.doc-version{display:inline-flex;align-items:center;padding:1px 5px;border-radius:5px;background:var(--blue-soft);color:var(--blue);font-size:10px;font-weight:700;line-height:1.35;cursor:help}.brand-subtitle{max-width:218px;margin-top:2px;color:var(--ink-secondary);font-size:11px;line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -715,8 +723,8 @@ a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}
 .table-wrap{width:100%;overflow-x:auto;margin:12px 0 17px;border:1px solid var(--line);border-radius:10px}.table-wrap table{width:100%;min-width:620px;border-collapse:collapse;font-size:13px;line-height:1.55}.table-wrap th,.table-wrap td{padding:9px 11px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);text-align:left;vertical-align:top;overflow-wrap:anywhere}.table-wrap th:last-child,.table-wrap td:last-child{border-right:0}.table-wrap tr:last-child td{border-bottom:0}.table-wrap th{background:#f7f7f9;color:#424245;font-weight:700}.table-wrap tr[id]{scroll-margin-top:24px}.table-wrap tr[id]:target td{background:var(--yellow)!important}.table-wrap tbody tr:nth-child(even){background:#fcfcfd}.discussion-table tr.changed td{background:var(--yellow);border-bottom-color:#f4df9f}.discussion-table tr.changed td:first-child{box-shadow:inset 3px 0 0 var(--yellow-line)}
 code{padding:2px 5px;border-radius:5px;background:#f1f1f4;color:#b34700;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.88em;overflow-wrap:anywhere}pre{margin:15px 0;padding:15px 17px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#f7f7f9;color:#242426;font-size:13px;line-height:1.55}pre code{padding:0;background:transparent;color:inherit}.mermaid{display:flex;justify-content:center;min-height:40px;background:#fbfbfd}.document-card img,.step-card img{max-width:100%;height:auto;border-radius:10px}.empty-state{color:var(--ink-secondary)}
 details{margin:13px 0;border:1px solid var(--line);border-radius:11px;background:var(--surface-soft);overflow:hidden}details>summary{padding:10px 13px;cursor:pointer;color:#424245;font-weight:650;list-style:none}details>summary::-webkit-details-marker{display:none}details>summary::before{content:'›';display:inline-block;width:17px;color:var(--ink-secondary);font-size:17px;line-height:1;vertical-align:-1px}details[open]>summary::before{content:'⌄'}details>summary:hover{background:#f1f1f4}details>p,details>ul,details>ol,details>table,details>.table-wrap,details>pre,details>h2,details>h3,details>h4,details>blockquote{margin-left:14px;margin-right:14px}
-@media(max-width:980px){.app-shell{grid-template-columns:245px minmax(0,1fr)}.main-content{padding-left:20px;padding-right:20px}.document-card,.summary-card,.step-card,.review-section,.review-entry-card,.interface-entry-card,.code-entry-card,.baseline-entry-card{padding-left:23px;padding-right:23px}.page-header{display:block}.build-note{padding-top:10px;text-align:left}}
-@media(max-width:720px){.app-shell{display:block}.sidebar{position:relative;height:auto;max-height:47vh;border-right:0;border-bottom:1px solid var(--line)}.sidebar-scroll{max-height:32vh}.main-content{padding:22px 12px 64px}.page-header{padding:0 6px}.page-header h1{font-size:27px}.document-card,.summary-card,.step-card,.review-section,.review-entry-card,.interface-entry-card,.code-entry-card,.baseline-entry-card{padding:22px 17px;border-radius:13px}.document-card h1,.step-card h1{font-size:23px}.document-card h2,.step-card h2{font-size:19px}}
+@media(max-width:980px){.app-shell{grid-template-columns:245px minmax(0,1fr)}.sidebar-toggle{left:230px}.app-shell.sidebar-collapsed .sidebar-toggle{left:12px}.main-content{padding-left:20px;padding-right:20px}.document-card,.summary-card,.step-card,.review-section,.review-entry-card,.interface-entry-card,.code-entry-card,.baseline-entry-card{padding-left:23px;padding-right:23px}.page-header{display:block}.build-note{padding-top:10px;text-align:left}}
+@media(max-width:720px){.app-shell{position:relative;display:block}.sidebar{position:relative;height:auto;max-height:47vh;border-right:0;border-bottom:1px solid var(--line)}.sidebar-scroll{max-height:32vh}.sidebar-toggle,.app-shell.sidebar-collapsed .sidebar-toggle{position:absolute;top:20px;right:14px;left:auto}.app-shell.sidebar-collapsed .sidebar{visibility:visible;height:auto;max-height:none;overflow:visible;border-bottom:1px solid var(--line)}.app-shell.sidebar-collapsed .sidebar-scroll,.app-shell.sidebar-collapsed .sidebar-footer{display:none}.main-content{padding:22px 12px 64px}.page-header{padding:0 6px}.page-header h1{font-size:27px}.document-card,.summary-card,.step-card,.review-section,.review-entry-card,.interface-entry-card,.code-entry-card,.baseline-entry-card{padding:22px 17px;border-radius:13px}.document-card h1,.step-card h1{font-size:23px}.document-card h2,.step-card h2{font-size:19px}}
 </style>
 <script type="module">
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
@@ -724,6 +732,18 @@ mermaid.initialize({startOnLoad:true, securityLevel:'loose', theme:'base', theme
 </script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+  (() => {
+  const shell = document.querySelector('.app-shell');
+  const toggle = document.getElementById('sidebar-toggle');
+  toggle.addEventListener('click', () => {
+    const collapsed = shell.classList.toggle('sidebar-collapsed');
+    const label = collapsed ? '展开侧板菜单' : '收起侧板菜单';
+    toggle.textContent = collapsed ? '›' : '‹';
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    toggle.setAttribute('aria-label', label);
+    toggle.title = label;
+  });
+  })();
   (() => {
   const anchorData = ${JSON.stringify(Object.fromEntries(anchorMap), null, 2)};
   const popup = document.getElementById('anchor-popup');
